@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>POLIVALON SPOT</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; padding-bottom: 70px; }
+    header { background: #222; color: white; text-align: center; padding: 15px; font-size: 22px; font-weight: bold; }
+    .post { background: #fff; margin: 10px; padding: 15px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .post-header { font-size: 14px; color: #555; margin-bottom: 5px; }
+    .post-header strong { color: #000; }
+    .post-text { font-size: 16px; margin-bottom: 10px; }
+    .post-actions { display: flex; gap: 15px; font-size: 16px; }
+    .post-actions button { cursor: pointer; background: none; border: none; font-size: 18px; }
+    .comment { margin-left: 15px; margin-top: 8px; }
+    .comment p { margin: 3px 0; }
+    .comment button { font-size: 12px; margin-left: 5px; cursor: pointer; }
+    .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff;
+      display: flex; justify-content: space-around; align-items: center;
+      padding: 12px 0; font-size: 26px; box-shadow: 0 -2px 6px rgba(0,0,0,0.15); }
+    .popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6);
+      display: none; justify-content: center; align-items: center; z-index: 2000; }
+    .popup-content { background: #fff; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+    textarea { width: 100%; height: 100px; margin-bottom: 15px; padding: 10px; }
+    .btn-add { background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 6px; }
+    .btn-cancel { background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 6px; }
+    #chatBox { background: #fff; margin: 10px; padding: 15px; border-radius: 10px; height: 300px; overflow-y: auto; }
+    .chat-msg { margin: 5px 0; padding: 8px 12px; border-radius: 10px; max-width: 70%; }
+    .chat-me { background: #dcf8c6; margin-left: auto; text-align: right; }
+    .chat-other { background: #eee; margin-right: auto; text-align: left; }
+    #chatInput { width: 80%; padding: 6px; }
+    #sendBtn { padding: 6px 12px; }
+    #notifications { background: #fff; margin: 10px; padding: 15px; border-radius: 10px; }
+    #loginScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #222; color: white;
+      display: flex; justify-content: center; align-items: center; flex-direction: column; z-index: 5000; }
+  </style>
+</head>
+<body>
+
+  <!-- Login Screen -->
+  <div id="loginScreen">
+    <h2>Welcome to POLIVALON SPOT</h2>
+    <p id="loginMsg"></p>
+    <button onclick="enterSite()">Enter</button>
+  </div>
+
+  <header>POLIVALON SPOT</header>
+  <div id="content"></div>
+
+  <!-- Bottom bar -->
+  <div class="bottom-bar">
+    <span onclick="showHome()">🏠</span>
+    <span onclick="openPopup()">➕</span>
+    <span onclick="showProfile()">👤</span>
+    <span onclick="showChat()">💬</span>
+    <span onclick="showNotifications()">🔔</span>
+  </div>
+
+  <!-- Popup Add Post -->
+  <div class="popup" id="popup">
+    <div class="popup-content">
+      <h3>Add New Post</h3>
+      <textarea id="postText" placeholder="Write something..."></textarea><br>
+      <button class="btn-add" onclick="addPost()">Post</button>
+      <button class="btn-cancel" onclick="closePopup()">Cancel</button>
+    </div>
+  </div>
+
+<script>
+  // User login
+  let currentUser;
+  if(!localStorage.getItem("userId")){
+    const id = "User" + Math.floor(Math.random()*10000);
+    const pass = Math.random().toString(36).slice(2,8);
+    localStorage.setItem("userId", id);
+    localStorage.setItem("password", pass);
+  }
+  currentUser = localStorage.getItem("userId");
+
+  document.getElementById("loginMsg").innerText =
+    "Your ID: " + localStorage.getItem("userId") +
+    " | Password: " + localStorage.getItem("password");
+
+  function enterSite(){ document.getElementById("loginScreen").style.display="none"; showHome(); }
+
+  const content = document.getElementById("content");
+  const popup = document.getElementById("popup");
+  const postText = document.getElementById("postText");
+
+  let posts = JSON.parse(localStorage.getItem("posts")) || [];
+  let notifications = JSON.parse(localStorage.getItem("notifications")) || [];
+  let chatMessages = JSON.parse(localStorage.getItem("chat")) || [];
+
+  function savePosts(){ localStorage.setItem("posts", JSON.stringify(posts)); }
+  function saveChat(){ localStorage.setItem("chat", JSON.stringify(chatMessages)); }
+  function saveNotifications(){ localStorage.setItem("notifications", JSON.stringify(notifications)); }
+
+  function showHome(){ content.innerHTML = ""; posts.slice().reverse().forEach(renderPost); }
+  function showProfile(){ content.innerHTML = "<h3>Your Posts</h3>"; posts.filter(p=>p.user===currentUser).slice().reverse().forEach(renderPost); }
+  function showChat(){
+    content.innerHTML = `<h3>Group Chat</h3>
+      <div id="chatBox"></div>
+      <input id="chatInput" placeholder="Type message...">
+      <button id="sendBtn" onclick="sendChat()">Send</button>`;
+    renderChat();
+  }
+  function renderChat(){
+    const chatBox = document.getElementById("chatBox"); chatBox.innerHTML = "";
+    chatMessages.forEach(msg=>{
+      const div=document.createElement("div");
+      div.className="chat-msg "+(msg.user===currentUser?"chat-me":"chat-other");
+      div.innerHTML=`<b>${msg.user}:</b> ${msg.text}`;
+      chatBox.appendChild(div);
+    });
+    chatBox.scrollTop=chatBox.scrollHeight;
+  }
+  function showNotifications(){ content.innerHTML = "<h3>Notifications</h3><div id='notifications'></div>";
+    const notifDiv = document.getElementById("notifications");
+    notifications.slice().reverse().forEach(n=>{ notifDiv.innerHTML += `<p>${n}</p>`; }); }
+
+  function openPopup(){ popup.style.display="flex"; }
+  function closePopup(){ popup.style.display="none"; }
+
+  function addPost(){
+    const text = postText.value.trim(); if(!text) return;
+    const post = { id: Date.now(), user: currentUser, text, time: Date.now(), likes: 0, likedUsers: [], comments: [] };
+    posts.push(post); savePosts(); postText.value=""; closePopup(); showHome();
+  }
+
+  function renderPost(post){
+    const div = document.createElement("div"); div.className = "post";
+    const timePassed = formatTime(Date.now()-post.time);
+    div.innerHTML = `
+      <div class="post-header"><strong>${post.user}</strong> · ${timePassed}</div>
+      <div class="post-text">${post.text}</div>
+      <div class="post-actions">
+        <button onclick="likePost(${post.id})">❤️ ${post.likes}</button>
+        <button onclick="commentPost(${post.id})">💬 ${post.comments.length}</button>
+        ${post.user===currentUser?`<button onclick="deletePost(${post.id})">🗑️</button>`:""}
+      </div>
+      <div id="comments-${post.id}">
+        ${renderComments(post.comments, post.id)}
+      </div>`;
+    content.appendChild(div);
+  }
+
+  function renderComments(comments, postId){
+    return comments.map((c,i)=>`
+      <div class="comment">
+        <p><b>${c.user}:</b> ${c.text}
+        <button onclick="replyComment(${postId},${i})">Reply</button></p>
+        ${c.replies?renderComments(c.replies, postId+"-"+i):""}
+      </div>`).join("");
+  }
+
+  function likePost(id){
+    const post = posts.find(p=>p.id===id);
+    if(post.likedUsers.includes(currentUser)) return; // منع التكرار
+    post.likes++; post.likedUsers.push(currentUser);
+    if(post.user!==currentUser){ notifications.push(`${currentUser} liked your post`); saveNotifications(); }
+    savePosts(); showHome();
+  }
+
+  function commentPost(id){
+    const text = prompt("Write your comment:"); if(!text) return;
+    const post = posts.find(p=>p.id===id);
+    post.comments.push({user: currentUser, text, replies: []});
+    if(post.user!==currentUser){ notifications.push(`${currentUser} commented on your post`); saveNotifications(); }
+    savePosts(); showHome();
+  }
+
+  function replyComment(postId, indexPath){
+    const text = prompt("Write your reply:"); if(!text) return;
+    let post = posts.find(p=>p.id==postId);
+    let target = post.comments[indexPath];
+    target.replies = target.replies || [];
+    target.replies.push({user: currentUser, text, replies: []});
+    if(post.user!==currentUser){ notifications.push(`${currentUser} replied to a comment`); saveNotifications(); }
+    savePosts(); showHome();
+  }
+
+  function deletePost(id){ posts = posts.filter(p=>p.id!==id); savePosts(); showHome(); }
+
+  function formatTime(ms){ const sec=Math.floor(ms/1000);
+    if(sec<60) return sec+"s ago"; const min=Math.floor(sec/60);
+    if(min<60) return min+"m ago"; const h=Math.floor(min/60);
+    if(h<24) return h+"h ago"; const d=Math.floor(h/24); return d+"d ago"; }
+
+  function sendChat(){
+    const input=document.getElementById("chatInput"); const msg=input.value.trim(); if(!msg) return;
+    const message={user: currentUser,text: msg}; chatMessages.push(message); saveChat(); renderChat(); input.value="";
+  }
+</script>
+</body>
+</html>
+
+     
+
+
+
+
+
+
+
+
